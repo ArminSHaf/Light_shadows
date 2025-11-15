@@ -1,35 +1,25 @@
-# Compiled source files
-*.o
-*.obj
-*.so
-*.dll
-*.exe
+# Visual Studio / C++
+.vs/
+*.suo
+*.user
+*.vcxproj.filters
+*.vcxproj.user
 
-# Libraries
-# Be careful: This might ignore your 'dependente' folder's libs!
+# Build output
+[Dd]ebug/
+[Rr]lease/
+x64/
+Win32/
+*.exe
+*.dll
+*.obj
+*.ilk
+*.pdb
+*.tlog
+*.idb
 *.lib
 *.a
 
-# Build directories
-/build/
-/bin/
-/out/
-/dist/
-[Dd]ebug/
-[Rr]elease/
-
-# IDE / Editor settings
-.vscode/
-.idea/
-*.sln.docstates
-*.suo
-*.vcxproj.user
-*.xcodeproj/
-
-# Logs and temporary files
-*.log
-*.tmp
-
-# OS-specific files
-.DS_Store
-Thumbs.db
+# Caches
+*.ipch
+*.db
