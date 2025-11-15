@@ -11,7 +11,7 @@
 x64/
 Win32/
 *.exe
-*.dll
+
 *.obj
 *.ilk
 *.pdb
