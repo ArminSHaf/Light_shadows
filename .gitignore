@@ -1,25 +1,19 @@
 # Visual Studio / C++
+# Ignores the folder with all the junk files (.vsid, .json, etc.)
 .vs/
+
+# Ignores user-specific settings
 *.suo
 *.user
 *.vcxproj.filters
 *.vcxproj.user
 
-# Build output
+# Ignores all build output folders
 [Dd]ebug/
 [Rr]lease/
 x64/
 Win32/
-*.exe
 
-*.obj
-*.ilk
-*.pdb
-*.tlog
-*.idb
-*.lib
-*.a
-
-# Caches
+# Ignores Caches
 *.ipch
 *.db
