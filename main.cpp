@@ -75,6 +75,14 @@ double pKeyDownStart = -1.0;
 bool pWasDown = false;
 float indicatorSquareHalfSize = 0.12f;   // tweak this to make the target bigger or smaller
 
+bool wizardIsDying = false;
+float wizardFallRotation = 0.0f;   // degrees
+
+float barSpeed = 0.8f;    // adjust to whatever you used
+int barDirection = 1;     // +1 = moving right, -1 = moving left
+
+
+
 
 glm::vec3 knightBasePos = glm::vec3(0.0f, 0.0f, 0.0f);
 glm::vec3 wizardBasePos = glm::vec3(1.6f, 0.0f, 0.0f); // initial off-screen
@@ -226,7 +234,7 @@ void drawShape(Shape& shape, GLuint programID, glm::vec3 position, float rotatio
 
 //soby1
 // --- NEW --- Helper function to draw our knight at a base position
-void drawKnight(GLuint programID, float armRotation, float headTilt, const glm::vec3 &basePos) {
+void drawKnight(GLuint programID, float armRotation, float headTilt, const glm::vec3& basePos) {
     // Cape (behind everything)
     drawShape(shapeKnightCape, programID, basePos + glm::vec3(0.0f, -0.3f, 0.0f), 0.0f, glm::vec3(0.3f, 0.5f, 1.0f), glm::vec4(0.5f, 0.1f, 0.1f, 1.0f));
     // Torso
@@ -242,104 +250,69 @@ void drawKnight(GLuint programID, float armRotation, float headTilt, const glm::
 }
 
 //soby1
-void drawWizard(
-    GLuint programID,
+// Replace your old drawWizard with this version.
+// Note: this uses your existing drawShape(...) which expects (shape, programID, position, rotation, scale, color).
+// We build a parent matrix, then compute a full transform per part and set it via glUniformMatrix4fv directly
+// (so we duplicate a little of drawShape's work but keep it simple and correct).
+
+void drawWizard(GLuint programID,
     float armRotation,
     float headTilt,
-    glm::vec3 basePos
-) {
-    // Color palette consistent with knight but purple
-    glm::vec4 robeColor = glm::vec4(0.45f, 0.0f, 0.75f, 1.0f);  // main purple
-    glm::vec4 trimColor = glm::vec4(0.30f, 0.0f, 0.55f, 1.0f);  // darker purple
-    glm::vec4 headColor = glm::vec4(0.95f, 0.85f, 0.75f, 1.0f);  // same skin tone
+    const glm::vec3& basePos,
+    float fallRotDeg)   // NEW parameter: whole-wizard rotation in degrees
+{
+    // Precompute parent transform: translate to basePos, then rotate by fallRotDeg around Z.
+    glm::mat4 parent = glm::mat4(1.0f);
+    parent = glm::translate(parent, basePos);
+    parent = glm::rotate(parent, glm::radians(fallRotDeg), glm::vec3(0.0f, 0.0f, 1.0f));
 
-    //
-    // --- BODY (same proportions as knight body) ---
-    //
-    drawShape(
-        shapeRectangle,
-        programID,
-        basePos + glm::vec3(0.0f, -0.12f, 0.0f),
-        0.0f,
-        glm::vec3(0.22f, 0.42f, 1.0f),
-        robeColor
-    );
+    // Colors (same as before)
+    glm::vec4 robeColor = glm::vec4(0.45f, 0.0f, 0.75f, 1.0f);
+    glm::vec4 trimColor = glm::vec4(0.30f, 0.0f, 0.55f, 1.0f);
+    glm::vec4 headColor = glm::vec4(0.95f, 0.85f, 0.75f, 1.0f);
 
-    //
-    // --- HEAD (same size as knight) ---
-    //
-    drawShape(
-        shapeRectangle,
-        programID,
-        basePos + glm::vec3(0.0f, 0.18f, 0.0f),
-        headTilt,
-        glm::vec3(0.15f, 0.15f, 1.0f),
-        headColor
-    );
+    // Cache uniform locations once (a little faster)
+    GLint uTransform = glGetUniformLocation(programID, "transform");
+    GLint uColor = glGetUniformLocation(programID, "color");
+    glUseProgram(programID);
 
-    //
-    // --- ARMS (same length/width as knight) ---
-    //
-    drawShape(
-        shapeRectangle,
-        programID,
-        basePos + glm::vec3(0.15f, -0.02f, 0.0f),
-        armRotation,
-        glm::vec3(0.10f, 0.30f, 1.0f),
-        robeColor
-    );
-    drawShape(
-        shapeRectangle,
-        programID,
-        basePos + glm::vec3(-0.15f, -0.02f, 0.0f),
-        -armRotation,
-        glm::vec3(0.10f, 0.30f, 1.0f),
-        robeColor
-    );
+    // Helper lambda: draw a local part under the parent matrix.
+    auto drawLocal = [&](Shape& shape, glm::vec3 localPos, float localRotDeg, glm::vec3 localScale, glm::vec4 color)
+        {
+            glm::mat4 t = parent;
+            t = glm::translate(t, localPos);
+            t = glm::rotate(t, glm::radians(localRotDeg), glm::vec3(0.0f, 0.0f, 1.0f));
+            t = glm::scale(t, localScale);
 
-    //
-    // --- FEET (same style as knight boots) ---
-    //
-    drawShape(
-        shapeRectangle,
-        programID,
-        basePos + glm::vec3(0.08f, -0.43f, 0.0f),
-        0.0f,
-        glm::vec3(0.07f, 0.22f, 1.0f),
-        trimColor
-    );
-    drawShape(
-        shapeRectangle,
-        programID,
-        basePos + glm::vec3(-0.08f, -0.43f, 0.0f),
-        0.0f,
-        glm::vec3(0.07f, 0.22f, 1.0f),
-        trimColor
-    );
+            glUniformMatrix4fv(uTransform, 1, GL_FALSE, glm::value_ptr(t));
+            glUniform4fv(uColor, 1, glm::value_ptr(color));
+            glBindVertexArray(shape.vao);
+            glDrawElements(GL_TRIANGLES, shape.indexCount, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
+        };
 
-    //
-    // --- BLOCKY WIZARD HAT (NO TRIANGLES — rectangle-only style) ---
-    //
-    // brim
-    drawShape(
-        shapeRectangle,
-        programID,
-        basePos + glm::vec3(0.0f, 0.28f, 0.0f),
-        0.0f,
-        glm::vec3(0.28f, 0.06f, 1.0f),
-        trimColor
-    );
+    // NOW draw parts using local coordinates relative to basePos:
+    // Body (local origin at wizard feet)
+    drawLocal(shapeRectangle, glm::vec3(0.0f, -0.12f, 0.0f), 0.0f, glm::vec3(0.22f, 0.42f, 1.0f), robeColor);
 
-    // blocky tall top (matches the visual style)
-    drawShape(
-        shapeRectangle,
-        programID,
-        basePos + glm::vec3(0.0f, 0.42f, 0.0f),
-        0.0f,
-        glm::vec3(0.20f, 0.25f, 1.0f),
-        robeColor
-    );
+    // Head
+    drawLocal(shapeRectangle, glm::vec3(0.0f, 0.18f, 0.0f), headTilt, glm::vec3(0.15f, 0.15f, 1.0f), headColor);
+
+    // Arms (use same X offsets but local now)
+    drawLocal(shapeRectangle, glm::vec3(0.15f, -0.02f, 0.0f), armRotation, glm::vec3(0.10f, 0.30f, 1.0f), robeColor);
+    drawLocal(shapeRectangle, glm::vec3(-0.15f, -0.02f, 0.0f), -armRotation, glm::vec3(0.10f, 0.30f, 1.0f), robeColor);
+
+    // Feet
+    drawLocal(shapeRectangle, glm::vec3(0.08f, -0.43f, 0.0f), 0.0f, glm::vec3(0.07f, 0.22f, 1.0f), trimColor);
+    drawLocal(shapeRectangle, glm::vec3(-0.08f, -0.43f, 0.0f), 0.0f, glm::vec3(0.07f, 0.22f, 1.0f), trimColor);
+
+    // Hat brim and tall blocky top (local positions)
+    drawLocal(shapeRectangle, glm::vec3(0.0f, 0.28f, 0.0f), 0.0f, glm::vec3(0.28f, 0.06f, 1.0f), trimColor);
+    drawLocal(shapeRectangle, glm::vec3(0.0f, 0.42f, 0.0f), 0.0f, glm::vec3(0.20f, 0.25f, 1.0f), robeColor);
+
+    // leave GL program bound state as-is
 }
+
 
 
 
@@ -500,6 +473,8 @@ int main(void)
 
     stateStartTime = glfwGetTime();
 
+    double lastFrameTime = glfwGetTime();//s1
+
     // glfwSetCursorPosCallback(window, cursor_position_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetFramebufferSizeCallback(window, window_callback);
@@ -513,6 +488,20 @@ int main(void)
     {
         double currentTime = glfwGetTime();
         double timeInState = currentTime - stateStartTime;
+
+        /*double lastFrameTime = 0.0;
+        double currentTime = glfwGetTime();
+        double deltaTime = currentTime - lastFrameTime;
+        lastFrameTime = currentTime;*/
+        //double currentTime = glfwGetTime();
+        double deltaTime = currentTime - lastFrameTime;
+        lastFrameTime = currentTime;
+        if (wizardIsDying) {
+            wizardFallRotation += deltaTime * 6000.0;
+            if (wizardFallRotation < 90.0)
+                wizardFallRotation = 90.0;
+
+        }
 
         // --- Logic and Drawing ---
 
@@ -743,7 +732,8 @@ int main(void)
             // draw characters
             drawKnight(programID, knightArmRotation, knightHeadTilt, knightBasePos);
             //drawKnight(programID, knightArmRotation, knightHeadTilt, wizardBasePos);
-            drawWizard(programID, knightArmRotation, knightHeadTilt, wizardBasePos);
+            drawWizard(programID, knightArmRotation, knightHeadTilt, wizardBasePos, wizardFallRotation);
+
 
 
             // transition to timing minigame
@@ -762,11 +752,18 @@ int main(void)
         case STATE_FINAL:
         {
             // update bar position
-            finalBarX = finalBarStartX + finalBarSpeed * (float)timeInState;
+            if (finalBarActive) {
+                finalBarX += finalBarSpeed * barDirection * (float)deltaTime;
+                if (finalBarX + 0.04f >= 1.0f) barDirection = -1; // hit right edge
+                if (finalBarX - 0.04f <= -1.0f) barDirection = 1; // hit left edge
+            }
+
+
 
             // draw knight & wizard behind UI
             drawKnight(programID, knightArmRotation, knightHeadTilt, knightBasePos);
-            drawWizard(programID, knightArmRotation, knightHeadTilt, wizardBasePos);
+            drawWizard(programID, knightArmRotation, knightHeadTilt, wizardBasePos, wizardFallRotation);
+
 
 
             //
@@ -814,9 +811,13 @@ int main(void)
             {
                 float dist = fabs(finalBarX - indicatorX);
 
-                if (dist <= indicatorSquareHalfSize)
-                {
+                if (dist <= indicatorSquareHalfSize) {
                     finalResultText = "YOU WON";
+                    wizardIsDying = true;            // <-- THIS LINE
+                    wizardFallRotation = 0.0f;       // <-- reset
+                    finalResultShown = true;
+                    finalResultStartTime = currentTime;
+                    glfwSetWindowTitle(window, "You won!");
                 }
                 else
                 {
@@ -880,9 +881,9 @@ int main(void)
 
 
 
-        
+
         } // End switch
-        
+
 
         // --- Draw the Knight on top of everything ---
         //drawKnight(programID, knightArmRotation, knightHeadTilt);
