@@ -63,10 +63,40 @@ enum GameState {
     STATE_PROMPT,      // Show the sequence
     STATE_PUZZLE,      // Player solves
     STATE_WIN,         // Player submitted correctly
-    STATE_LOSE         // Player submitted incorrectly
+    STATE_LOSE,       // Player submitted incorrectly
+    STATE_FINAL        // soby1
 };
 GameState currentState = STATE_INTRO_READY;
 double stateStartTime = 0.0; // A timer for our states
+
+
+//soby1
+double pKeyDownStart = -1.0;
+bool pWasDown = false;
+float indicatorSquareHalfSize = 0.12f;   // tweak this to make the target bigger or smaller
+
+bool wizardIsDying = false;
+float wizardFallRotation = 0.0f;   // degrees
+
+float barSpeed = 0.8f;    // adjust to whatever you used
+int barDirection = 1;     // +1 = moving right, -1 = moving left
+
+
+
+
+glm::vec3 knightBasePos = glm::vec3(0.0f, 0.0f, 0.0f);
+glm::vec3 wizardBasePos = glm::vec3(1.6f, 0.0f, 0.0f); // initial off-screen
+bool finalBarActive = false;
+float finalBarStartX = -1.2f;
+float finalBarX = finalBarStartX;
+float finalBarSpeed = 0.9f;     // units/sec (tweak)
+float finalBarHalfWidth = 0.06f; // half width for overlap check
+float indicatorX = 0.0f;        // center of screen
+float indicatorHalfWidth = 0.03f;
+bool prevSpaceDown = false;
+bool finalResultShown = false;
+std::string finalResultText;
+double finalResultStartTime = 0.0;
 
 // --- PUZZLE LOGIC ---
 // This vector will be shuffled
@@ -202,21 +232,89 @@ void drawShape(Shape& shape, GLuint programID, glm::vec3 position, float rotatio
     glBindVertexArray(0);
 }
 
-// --- NEW --- Helper function to draw our knight
-void drawKnight(GLuint programID, float armRotation, float headTilt) {
+//soby1
+// --- NEW --- Helper function to draw our knight at a base position
+void drawKnight(GLuint programID, float armRotation, float headTilt, const glm::vec3& basePos) {
     // Cape (behind everything)
-    drawShape(shapeKnightCape, programID, glm::vec3(0.0f, -0.3f, 0.0f), 0.0f, glm::vec3(0.3f, 0.5f, 1.0f), glm::vec4(0.5f, 0.1f, 0.1f, 1.0f));
+    drawShape(shapeKnightCape, programID, basePos + glm::vec3(0.0f, -0.3f, 0.0f), 0.0f, glm::vec3(0.3f, 0.5f, 1.0f), glm::vec4(0.5f, 0.1f, 0.1f, 1.0f));
     // Torso
-    drawShape(shapeKnightTorso, programID, glm::vec3(0.0f, -0.2f, 0.0f), 0.0f, glm::vec3(0.2f, 0.4f, 1.0f), glm::vec4(0.3f, 0.3f, 0.4f, 1.0f));
+    drawShape(shapeKnightTorso, programID, basePos + glm::vec3(0.0f, -0.2f, 0.0f), 0.0f, glm::vec3(0.2f, 0.4f, 1.0f), glm::vec4(0.3f, 0.3f, 0.4f, 1.0f));
     // Head
-    drawShape(shapeKnightHead, programID, glm::vec3(0.0f, 0.1f, 0.0f), headTilt, glm::vec3(0.14f, 0.14f, 1.0f), glm::vec4(0.8f, 0.7f, 0.6f, 1.0f));
+    drawShape(shapeKnightHead, programID, basePos + glm::vec3(0.0f, 0.1f, 0.0f), headTilt, glm::vec3(0.14f, 0.14f, 1.0f), glm::vec4(0.8f, 0.7f, 0.6f, 1.0f));
     // Arms (thin rectangles)
-    drawShape(shapeKnightArm, programID, glm::vec3(-0.12f, -0.1f, 0.0f), armRotation, glm::vec3(0.04f, 0.3f, 1.0f), glm::vec4(0.2f, 0.2f, 0.3f, 1.0f));
-    drawShape(shapeKnightArm, programID, glm::vec3(0.12f, -0.1f, 0.0f), -armRotation, glm::vec3(0.04f, 0.3f, 1.0f), glm::vec4(0.2f, 0.2f, 0.3f, 1.0f));
+    drawShape(shapeKnightArm, programID, basePos + glm::vec3(-0.12f, -0.1f, 0.0f), armRotation, glm::vec3(0.04f, 0.3f, 1.0f), glm::vec4(0.2f, 0.2f, 0.3f, 1.0f));
+    drawShape(shapeKnightArm, programID, basePos + glm::vec3(0.12f, -0.1f, 0.0f), -armRotation, glm::vec3(0.04f, 0.3f, 1.0f), glm::vec4(0.2f, 0.2f, 0.3f, 1.0f));
     // Legs
-    drawShape(shapeKnightLeg, programID, glm::vec3(-0.05f, -0.5f, 0.0f), 0.0f, glm::vec3(0.06f, 0.2f, 1.0f), glm::vec4(0.2f, 0.2f, 0.3f, 1.0f));
-    drawShape(shapeKnightLeg, programID, glm::vec3(0.05f, -0.5f, 0.0f), 0.0f, glm::vec3(0.06f, 0.2f, 1.0f), glm::vec4(0.2f, 0.2f, 0.3f, 1.0f));
+    drawShape(shapeKnightLeg, programID, basePos + glm::vec3(-0.05f, -0.5f, 0.0f), 0.0f, glm::vec3(0.06f, 0.2f, 1.0f), glm::vec4(0.2f, 0.2f, 0.3f, 1.0f));
+    drawShape(shapeKnightLeg, programID, basePos + glm::vec3(0.05f, -0.5f, 0.0f), 0.0f, glm::vec3(0.06f, 0.2f, 1.0f), glm::vec4(0.2f, 0.2f, 0.3f, 1.0f));
 }
+
+//soby1
+// Replace your old drawWizard with this version.
+// Note: this uses your existing drawShape(...) which expects (shape, programID, position, rotation, scale, color).
+// We build a parent matrix, then compute a full transform per part and set it via glUniformMatrix4fv directly
+// (so we duplicate a little of drawShape's work but keep it simple and correct).
+
+void drawWizard(GLuint programID,
+    float armRotation,
+    float headTilt,
+    const glm::vec3& basePos,
+    float fallRotDeg)   // NEW parameter: whole-wizard rotation in degrees
+{
+    // Precompute parent transform: translate to basePos, then rotate by fallRotDeg around Z.
+    glm::mat4 parent = glm::mat4(1.0f);
+    parent = glm::translate(parent, basePos);
+    parent = glm::rotate(parent, glm::radians(fallRotDeg), glm::vec3(0.0f, 0.0f, 1.0f));
+
+    // Colors (same as before)
+    glm::vec4 robeColor = glm::vec4(0.45f, 0.0f, 0.75f, 1.0f);
+    glm::vec4 trimColor = glm::vec4(0.30f, 0.0f, 0.55f, 1.0f);
+    glm::vec4 headColor = glm::vec4(0.95f, 0.85f, 0.75f, 1.0f);
+
+    // Cache uniform locations once (a little faster)
+    GLint uTransform = glGetUniformLocation(programID, "transform");
+    GLint uColor = glGetUniformLocation(programID, "color");
+    glUseProgram(programID);
+
+    // Helper lambda: draw a local part under the parent matrix.
+    auto drawLocal = [&](Shape& shape, glm::vec3 localPos, float localRotDeg, glm::vec3 localScale, glm::vec4 color)
+        {
+            glm::mat4 t = parent;
+            t = glm::translate(t, localPos);
+            t = glm::rotate(t, glm::radians(localRotDeg), glm::vec3(0.0f, 0.0f, 1.0f));
+            t = glm::scale(t, localScale);
+
+            glUniformMatrix4fv(uTransform, 1, GL_FALSE, glm::value_ptr(t));
+            glUniform4fv(uColor, 1, glm::value_ptr(color));
+            glBindVertexArray(shape.vao);
+            glDrawElements(GL_TRIANGLES, shape.indexCount, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
+        };
+
+    // NOW draw parts using local coordinates relative to basePos:
+    // Body (local origin at wizard feet)
+    drawLocal(shapeRectangle, glm::vec3(0.0f, -0.12f, 0.0f), 0.0f, glm::vec3(0.22f, 0.42f, 1.0f), robeColor);
+
+    // Head
+    drawLocal(shapeRectangle, glm::vec3(0.0f, 0.18f, 0.0f), headTilt, glm::vec3(0.15f, 0.15f, 1.0f), headColor);
+
+    // Arms (use same X offsets but local now)
+    drawLocal(shapeRectangle, glm::vec3(0.15f, -0.02f, 0.0f), armRotation, glm::vec3(0.10f, 0.30f, 1.0f), robeColor);
+    drawLocal(shapeRectangle, glm::vec3(-0.15f, -0.02f, 0.0f), -armRotation, glm::vec3(0.10f, 0.30f, 1.0f), robeColor);
+
+    // Feet
+    drawLocal(shapeRectangle, glm::vec3(0.08f, -0.43f, 0.0f), 0.0f, glm::vec3(0.07f, 0.22f, 1.0f), trimColor);
+    drawLocal(shapeRectangle, glm::vec3(-0.08f, -0.43f, 0.0f), 0.0f, glm::vec3(0.07f, 0.22f, 1.0f), trimColor);
+
+    // Hat brim and tall blocky top (local positions)
+    drawLocal(shapeRectangle, glm::vec3(0.0f, 0.28f, 0.0f), 0.0f, glm::vec3(0.28f, 0.06f, 1.0f), trimColor);
+    drawLocal(shapeRectangle, glm::vec3(0.0f, 0.42f, 0.0f), 0.0f, glm::vec3(0.20f, 0.25f, 1.0f), robeColor);
+
+    // leave GL program bound state as-is
+}
+
+
+
 
 // --- NEW --- Helper function to draw the background
 void drawBackground(GLuint programID) {
@@ -375,6 +473,8 @@ int main(void)
 
     stateStartTime = glfwGetTime();
 
+    double lastFrameTime = glfwGetTime();//s1
+
     // glfwSetCursorPosCallback(window, cursor_position_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetFramebufferSizeCallback(window, window_callback);
@@ -389,6 +489,20 @@ int main(void)
         double currentTime = glfwGetTime();
         double timeInState = currentTime - stateStartTime;
 
+        /*double lastFrameTime = 0.0;
+        double currentTime = glfwGetTime();
+        double deltaTime = currentTime - lastFrameTime;
+        lastFrameTime = currentTime;*/
+        //double currentTime = glfwGetTime();
+        double deltaTime = currentTime - lastFrameTime;
+        lastFrameTime = currentTime;
+        if (wizardIsDying) {
+            wizardFallRotation += deltaTime * 6000.0;
+            if (wizardFallRotation < 90.0)
+                wizardFallRotation = 90.0;
+
+        }
+
         // --- Logic and Drawing ---
 
         drawBackground(programID);
@@ -396,6 +510,43 @@ int main(void)
 
         // --- Draw Background Scenery ---
         drawBackground(programID);
+
+        // ---------------- DEBUG: Hold P for 2 seconds to skip to FINAL ----------------
+        bool pDown = (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS);
+
+        if (pDown && !pWasDown) {
+            // just pressed
+            pKeyDownStart = currentTime;
+        }
+
+        if (pDown && pKeyDownStart > 0.0) {
+            // held long enough
+            if (currentTime - pKeyDownStart >= 1.0) {
+                // jump directly to final stage
+                currentState = STATE_FINAL;
+                stateStartTime = currentTime;
+
+                // reset bar
+                finalBarActive = true;
+                finalBarX = finalBarStartX;
+                finalResultShown = false;
+                prevSpaceDown = false;
+
+                // put knight + wizard in their Stage 2 positions
+                knightBasePos.x = -0.6f;
+                wizardBasePos.x = 0.9f;
+
+                std::cout << "[DEBUG] Skipped to Stage 2" << std::endl;
+            }
+        }
+
+        if (!pDown) {
+            pKeyDownStart = -1.0; // reset
+        }
+
+        pWasDown = pDown;
+        // -------------------------------------------------------------------------------
+
 
         // --- Game State Logic ---
         switch (currentState)
@@ -542,32 +693,203 @@ int main(void)
             break;
         }
 
+        //case STATE_WIN:
+        //{
+        //    // "You win!"
+        //    // --- We would draw "Success! Task 2 Unlocked." text here ---
+
+        //    // Visual cue: Knight cheers! (Animation 2)
+        //    knightArmRotation = -140.0f;
+        //    knightHeadTilt = 0.0f;
+
+        //    // After 3 seconds, we could go to the next task.
+        //    // For now, we'll just restart the intro.
+        //    if (timeInState >= 3.0) {
+        //        currentState = STATE_INTRO_READY;
+        //        stateStartTime = currentTime;
+        //        // Clear containers for next round
+        //        for (int i = 0; i < 4; i++) playerContainers[i] = -1;
+
+        //        // --- NEW: RE-SHUFFLE FOR NEXT ROUND ---
+        //        std::shuffle(correctSequence.begin(), correctSequence.end(), randomGenerator);
+        //    }
+        //    break;
+        //}
         case STATE_WIN:
         {
-            // "You win!"
-            // --- We would draw "Success! Task 2 Unlocked." text here ---
+            float animDuration = 1.0f;
+            float t = (float)glm::clamp((float)timeInState / animDuration, 0.0f, 1.0f);
 
-            // Visual cue: Knight cheers! (Animation 2)
-            knightArmRotation = -140.0f;
-            knightHeadTilt = 0.0f;
+            // animate knight and wizard
+            float knightStartX = 0.0f;
+            float knightTargetX = -0.6f;
+            knightBasePos.x = glm::mix(knightStartX, knightTargetX, t);
 
-            // After 3 seconds, we could go to the next task.
-            // For now, we'll just restart the intro.
-            if (timeInState >= 3.0) {
-                currentState = STATE_INTRO_READY;
+            float wizardStartX = 1.6f;
+            float wizardTargetX = 0.9f;
+            wizardBasePos.x = glm::mix(wizardStartX, wizardTargetX, t);
+
+            // draw characters
+            drawKnight(programID, knightArmRotation, knightHeadTilt, knightBasePos);
+            //drawKnight(programID, knightArmRotation, knightHeadTilt, wizardBasePos);
+            drawWizard(programID, knightArmRotation, knightHeadTilt, wizardBasePos, wizardFallRotation);
+
+
+
+            // transition to timing minigame
+            if (timeInState >= animDuration) {
+                currentState = STATE_FINAL;
                 stateStartTime = currentTime;
-                // Clear containers for next round
-                for (int i = 0; i < 4; i++) playerContainers[i] = -1;
-
-                // --- NEW: RE-SHUFFLE FOR NEXT ROUND ---
-                std::shuffle(correctSequence.begin(), correctSequence.end(), randomGenerator);
+                finalBarActive = true;
+                finalBarX = finalBarStartX;
+                finalResultShown = false;
+                prevSpaceDown = false;
             }
             break;
         }
+
+        //soby1
+        case STATE_FINAL:
+        {
+            // update bar position
+            if (finalBarActive) {
+                finalBarX += finalBarSpeed * barDirection * (float)deltaTime;
+                if (finalBarX + 0.04f >= 1.0f) barDirection = -1; // hit right edge
+                if (finalBarX - 0.04f <= -1.0f) barDirection = 1; // hit left edge
+            }
+
+
+
+            // draw knight & wizard behind UI
+            drawKnight(programID, knightArmRotation, knightHeadTilt, knightBasePos);
+            drawWizard(programID, knightArmRotation, knightHeadTilt, wizardBasePos, wizardFallRotation);
+
+
+
+            //
+            // ----- STATIC HIT ZONE -----
+            //
+            glm::vec4 squareColor = glm::vec4(0.1f, 0.8f, 0.1f, 0.4f); // translucent green
+            drawShape(
+                shapeRectangle,
+                programID,
+                glm::vec3(indicatorX, 0.0f, 0.0f),
+                0.0f,
+                glm::vec3(indicatorSquareHalfSize, indicatorSquareHalfSize, 1.0f),
+                squareColor
+            );
+
+            // center line (optional, just visual)
+            drawShape(
+                shapeRectangle,
+                programID,
+                glm::vec3(indicatorX, 0.0f, 0.0f),
+                0.0f,
+                glm::vec3(0.01f, indicatorSquareHalfSize * 2.0f, 1.0f),
+                glm::vec4(1.0f)
+            );
+
+            //
+            // ----- MOVING BAR -----
+            //
+            drawShape(
+                shapeRectangle,
+                programID,
+                glm::vec3(finalBarX, 0.0f, 0.0f),
+                0.0f,
+                glm::vec3(0.04f, 0.9f, 1.0f),
+                glm::vec4(0.9f, 0.2f, 0.2f, 1.0f)
+            );
+
+            //
+            // ----- SPACE PRESS → CHECK SUCCESS -----
+            //
+            bool spaceDown = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);
+            bool pressed = (spaceDown && !prevSpaceDown);  // edge detection only!
+
+            if (pressed && finalBarActive)
+            {
+                float dist = fabs(finalBarX - indicatorX);
+
+                if (dist <= indicatorSquareHalfSize) {
+                    finalResultText = "YOU WON";
+                    wizardIsDying = true;            // <-- THIS LINE
+                    wizardFallRotation = 0.0f;       // <-- reset
+                    finalResultShown = true;
+                    finalResultStartTime = currentTime;
+                    glfwSetWindowTitle(window, "You won!");
+                }
+                else
+                {
+                    finalResultText = "YOU LOST";
+                }
+
+                finalResultShown = true;
+                finalResultStartTime = currentTime;
+                finalBarActive = false;
+
+                glfwSetWindowTitle(window, finalResultText.c_str());
+            }
+
+            prevSpaceDown = spaceDown;
+
+            //
+            // ----- BAR MISSED COMPLETELY → AUTO LOSE -----
+            //
+            if (!finalResultShown && finalBarX > 1.2f)
+            {
+                finalResultText = "YOU LOST";
+                finalResultShown = true;
+                finalResultStartTime = currentTime;
+                finalBarActive = false;
+                glfwSetWindowTitle(window, "You lost");
+            }
+
+            //
+            // ----- RESULT OVERLAY -----
+            //
+            if (finalResultShown)
+            {
+                glm::vec4 overlayColor =
+                    (finalResultText == "YOU WON")
+                    ? glm::vec4(0.1f, 0.8f, 0.2f, 0.85f)
+                    : glm::vec4(0.8f, 0.1f, 0.1f, 0.85f);
+
+                drawShape(
+                    shapeRectangle,
+                    programID,
+                    glm::vec3(0.0f, 0.0f, 0.0f),
+                    0.0f,
+                    glm::vec3(1.0f, 0.4f, 1.0f),
+                    overlayColor
+                );
+
+                std::cout << finalResultText << std::endl;
+
+                if ((currentTime - finalResultStartTime) >= 2.0)
+                {
+                    currentState = STATE_INTRO_READY;
+                    stateStartTime = currentTime;
+                    for (int i = 0; i < 4; i++) playerContainers[i] = -1;
+                    std::shuffle(correctSequence.begin(), correctSequence.end(), randomGenerator);
+                    glfwSetWindowTitle(window, "Eloria - The Memory Seal");
+                }
+            }
+
+            break;
+        }
+
+
+
+
         } // End switch
 
+
         // --- Draw the Knight on top of everything ---
-        drawKnight(programID, knightArmRotation, knightHeadTilt);
+        //drawKnight(programID, knightArmRotation, knightHeadTilt);
+        // new (normal gameplay keeps knight centered)
+        drawKnight(programID, knightArmRotation, knightHeadTilt, knightBasePos);
+
 
         // --- Finalize Frame ---
         glfwSwapBuffers(window);
