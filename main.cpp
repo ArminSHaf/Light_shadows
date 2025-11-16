@@ -19,7 +19,7 @@
 #include <vector>
 #include <map>
 #include <cmath>
-#include <random>       // For randomization
+#include <random>       
 #include <algorithm>    // For std::shuffle
 #include <chrono>       // For seeding the random engine
 
@@ -693,28 +693,6 @@ int main(void)
             break;
         }
 
-        //case STATE_WIN:
-        //{
-        //    // "You win!"
-        //    // --- We would draw "Success! Task 2 Unlocked." text here ---
-
-        //    // Visual cue: Knight cheers! (Animation 2)
-        //    knightArmRotation = -140.0f;
-        //    knightHeadTilt = 0.0f;
-
-        //    // After 3 seconds, we could go to the next task.
-        //    // For now, we'll just restart the intro.
-        //    if (timeInState >= 3.0) {
-        //        currentState = STATE_INTRO_READY;
-        //        stateStartTime = currentTime;
-        //        // Clear containers for next round
-        //        for (int i = 0; i < 4; i++) playerContainers[i] = -1;
-
-        //        // --- NEW: RE-SHUFFLE FOR NEXT ROUND ---
-        //        std::shuffle(correctSequence.begin(), correctSequence.end(), randomGenerator);
-        //    }
-        //    break;
-        //}
         case STATE_WIN:
         {
             float animDuration = 1.0f;
